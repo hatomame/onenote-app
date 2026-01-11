@@ -1,11 +1,15 @@
-
 export interface NotePage {
   id: string;
   title: string;
   content: string;
-  copyAreas: string[]; // 複数のコピー領域をサポート
+  copyAreas: CopyBlock[]; // 複数のコピー領域をサポート
   lastModified: number;
   isSubpage?: boolean;
+}
+
+export interface CopyBlock {
+  id: string;
+  content: string;
 }
 
 export interface SectionGroup {
@@ -56,3 +60,4 @@ export interface AppState {
   searchResults: SearchMatch[];
   currentSearchResultIndex: number;
 }
+

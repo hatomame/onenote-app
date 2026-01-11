@@ -1,173 +1,159 @@
-
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import type { NotePage } from '../types';
-import CopyArea from './CopyArea';
+import React, { useEffect, useState, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import ContextMenu, { type MenuItem } from './ContextMenu';
+import CopyArea from './CopyArea';
+import { Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-interface EditorProps {
-  page: NotePage | null;
-}
+const Editor: React.FC = () => {
+  // Storeから必要なデータと関数を取得
+  const { 
+    state, 
+    updatePage, 
+    addCopyArea, 
+    deleteCopyArea 
+  } = useStore();
 
-const Editor: React.FC<EditorProps> = ({ page }) => {
-  const { state, updatePage, addCopyArea } = useStore();
-  const contentRef = useRef<HTMLDivElement>(null);
-  const isInternalChange = useRef(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
+  const [content, setContent] = useState('');
+  const [title, setTitle] = useState('');
+  const editorRef = useRef<HTMLDivElement>(null);
 
-  // ページIDが変更された際にDOMの同期を行う
+  // Storeの中から「現在のアクティブなページ」を探し出すロジック
+  const activePage = React.useMemo(() => {
+    if (!state.activePageId) return null;
+    for (const nb of state.notebooks) {
+      for (const sec of nb.sections) {
+        const page = sec.pages.find((p) => p.id === state.activePageId);
+        if (page) return page;
+      }
+    }
+    return null;
+  }, [state.notebooks, state.activePageId]);
+
+  // ページが切り替わったらエディタの内容を更新
   useEffect(() => {
-    if (contentRef.current) {
-      const targetContent = page?.content || '';
-      // 内部フラグをリセットし、DOMの内容を強制的に上書き
-      isInternalChange.current = false;
-      contentRef.current.innerHTML = targetContent;
+    if (activePage) {
+      setContent(activePage.content);
+      setTitle(activePage.title);
+      if (editorRef.current && editorRef.current.innerHTML !== activePage.content) {
+        editorRef.current.innerHTML = activePage.content;
+      }
+    } else {
+      setContent('');
+      setTitle('');
+      if (editorRef.current) editorRef.current.innerHTML = '';
     }
-  }, [page?.id]);
+  }, [activePage?.id]); // IDが変わった時だけ実行
 
-  useEffect(() => {
-    const activeMatch = document.getElementById('active-search-match');
-    if (activeMatch) {
-      activeMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [state.currentSearchResultIndex, state.activePageId]);
-
-  const handleInput = useCallback(() => {
-    if (contentRef.current && page) {
-      isInternalChange.current = true;
-      updatePage(page.id, { content: contentRef.current.innerHTML });
-    }
-  }, [page, updatePage]);
-
-  const handleEditorContextMenu = (e: React.MouseEvent) => {
-    if (e.defaultPrevented) return;
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY });
+  // タイトル更新
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activePage) return;
+    const newTitle = e.target.value;
+    setTitle(newTitle);
+    updatePage(activePage.id, { title: newTitle });
   };
 
-  if (!page) {
+  // 本文更新
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    if (!activePage) return;
+    const newContent = e.currentTarget.innerHTML;
+    setContent(newContent);
+    // パフォーマンスのため、本来はdebounce（遅延保存）すべきだが、今回は直接更新
+    updatePage(activePage.id, { content: newContent });
+  };
+
+  // コピー領域追加
+  const handleAddCopyBlock = () => {
+    if (!activePage) return;
+    
+    const selection = window.getSelection();
+    let selectedHtml = '';
+
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0);
+      const div = document.createElement('div');
+      div.appendChild(range.cloneContents());
+      selectedHtml = div.innerHTML;
+    } else {
+      selectedHtml = content; // 選択なしなら全文
+    }
+
+    if (selectedHtml) {
+      addCopyArea(selectedHtml);
+    }
+  };
+
+  if (!activePage) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-white text-gray-400">
-        ページを選択するか、新しく作成してください。
+      <div className="flex h-full items-center justify-center bg-gray-50 text-gray-400">
+        ページを選択または作成してください
       </div>
     );
   }
 
-  const editorMenuItems: MenuItem[] = [
-    { label: 'コピー領域を追加', onClick: () => addCopyArea(page.id) }
-  ];
-
-  const renderHighlightedContent = (html: string) => {
-    if (!state.searchTerm) return html;
-    const term = state.searchTerm;
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    const highlightNode = (node: Node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent || '';
-        if (text.toLowerCase().includes(term.toLowerCase())) {
-          const parent = node.parentNode;
-          if (!parent) return;
-          const parts = text.split(new RegExp(`(${term})`, 'gi'));
-          const fragment = document.createDocumentFragment();
-          parts.forEach((part) => {
-            if (part.toLowerCase() === term.toLowerCase()) {
-              const mark = document.createElement('mark');
-              mark.className = 'bg-yellow-200 rounded-sm';
-              const currentMatch = state.searchResults[state.currentSearchResultIndex];
-              if (currentMatch && currentMatch.pageId === page.id && currentMatch.fieldName === 'content') {
-                mark.id = 'active-search-match';
-              }
-              mark.textContent = part;
-              fragment.appendChild(mark);
-            } else {
-              fragment.appendChild(document.createTextNode(part));
-            }
-          });
-          parent.replaceChild(fragment, node);
-        }
-      } else {
-        node.childNodes.forEach(highlightNode);
-      }
-    };
-    doc.body.childNodes.forEach(highlightNode);
-    return doc.body.innerHTML;
-  };
-
-  const renderHighlightedTitle = (text: string) => {
-    if (!state.searchTerm) return text;
-    const parts = text.split(new RegExp(`(${state.searchTerm})`, 'gi'));
-    return parts.map((part, i) => 
-      part.toLowerCase() === state.searchTerm.toLowerCase() ? 
-        <mark key={i} className="bg-yellow-200">{part}</mark> : part
-    );
-  };
-
   return (
-    <div 
-      className="flex-1 flex flex-col bg-white overflow-hidden relative"
-      onContextMenu={handleEditorContextMenu}
-    >
-      <div className="px-10 pt-8 pb-4 border-b border-gray-100 bg-white z-10 shrink-0">
-        <div className="relative group">
-           {state.searchTerm ? (
-             <div className="w-full text-3xl font-bold py-1 break-all pointer-events-none absolute inset-0 z-10">
-                {renderHighlightedTitle(page.title)}
-             </div>
-           ) : null}
-           <input
-            type="text"
-            className={`w-full text-3xl font-bold border-none focus:ring-0 p-0 text-gray-900 placeholder-gray-300 ${state.searchTerm ? 'opacity-0' : 'opacity-100'}`}
-            value={page.title}
-            placeholder="無題のページ"
-            onChange={(e) => updatePage(page.id, { title: e.target.value })}
+    <div className="flex flex-1 flex-col h-full overflow-hidden bg-white">
+      {/* ヘッダーエリア */}
+      <div className="border-b border-gray-200 p-6 pb-4">
+        <input
+          type="text"
+          value={title}
+          onChange={handleTitleChange}
+          placeholder="ページタイトル"
+          className="w-full text-3xl font-bold text-gray-900 placeholder-gray-300 outline-none"
+        />
+        <div className="mt-2 text-sm text-gray-500">
+          最終更新: {new Date(activePage.lastModified || Date.now()).toLocaleString()}
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* メインエディタ */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div
+            ref={editorRef}
+            className="prose prose-lg max-w-none min-h-[500px] outline-none"
+            contentEditable
+            onInput={handleInput}
+            suppressContentEditableWarning
           />
         </div>
-        <div className="text-xs text-gray-400 mt-2 font-light">
-          最終更新: {new Date(page.lastModified).toLocaleString('ja-JP')}
-        </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto px-10 py-6 custom-scrollbar">
-        <div className="max-w-4xl mx-auto pb-32">
-          {page.copyAreas.map((areaContent, index) => (
-            <CopyArea key={index} content={areaContent} pageId={page.id} index={index} />
-          ))}
-
-          <div className="relative mt-8 min-h-[500px]">
-            {state.searchTerm && (
-              <div 
-                className="absolute inset-0 text-lg leading-relaxed text-gray-800 pointer-events-none whitespace-pre-wrap break-words z-20"
-                dangerouslySetInnerHTML={{ __html: renderHighlightedContent(page.content) }}
-              />
-            )}
+        {/* コピー領域サイドパネル (右側) */}
+        {(activePage.copyAreas && activePage.copyAreas.length > 0) && (
+          <div className="w-80 border-l border-gray-200 bg-gray-50 p-4 overflow-y-auto">
+            <h3 className="mb-4 font-semibold text-gray-700">一括コピー領域</h3>
             
-            <div
-              ref={contentRef}
-              contentEditable={!state.searchTerm}
-              onInput={handleInput}
-              onBlur={handleInput}
-              className={`w-full outline-none text-lg leading-relaxed min-h-[500px] ${state.searchTerm ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-              style={{ minHeight: '500px' }}
-            />
-            {!page.content && !state.searchTerm && (
-              <div className="absolute top-0 left-0 text-gray-300 pointer-events-none text-lg">
-                ここに入力を開始します... (右クリックでコピー領域を追加できます)
-              </div>
-            )}
+            <div className="space-y-4">
+              <AnimatePresence>
+                {activePage.copyAreas.map((block) => (
+                  <motion.div
+                    key={block.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                  >
+                    <CopyArea
+                      id={block.id}
+                      content={block.content}
+                      // ★ここが重要: ページIDとブロックIDの両方を渡す
+                      onRemove={(blockId) => deleteCopyArea(activePage.id, blockId)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {contextMenu && (
-        <ContextMenu 
-          x={contextMenu.x} 
-          y={contextMenu.y} 
-          items={editorMenuItems} 
-          onClose={() => setContextMenu(null)} 
-        />
-      )}
+      {/* フローティングアクションボタン */}
+      <button
+        onClick={handleAddCopyBlock}
+        className="fixed bottom-8 right-8 rounded-full bg-purple-600 p-4 text-white shadow-lg hover:bg-purple-700 transition-transform active:scale-95 z-10"
+        title="選択範囲をコピー領域に追加"
+      >
+        <Plus size={24} />
+      </button>
     </div>
   );
 };

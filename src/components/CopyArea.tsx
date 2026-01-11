@@ -1,16 +1,15 @@
-
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { CopyIcon } from './Icons';
 import { useStore } from '../store/useStore';
 import ContextMenu, { type MenuItem } from './ContextMenu';
 
 interface CopyAreaProps {
+  id: string; // Changed from index: number
   content: string;
   pageId: string;
-  index: number;
 }
 
-const CopyArea: React.FC<CopyAreaProps> = ({ content, pageId, index }) => {
+const CopyArea: React.FC<CopyAreaProps> = ({ id, content, pageId }) => { // Changed from { content, pageId, index }
   const { state, updateCopyArea, deleteCopyArea, showToast } = useStore();
   const editRef = useRef<HTMLDivElement>(null);
   const isInternalChange = useRef(false);
@@ -21,15 +20,13 @@ const CopyArea: React.FC<CopyAreaProps> = ({ content, pageId, index }) => {
       editRef.current.innerHTML = content || '';
     }
     isInternalChange.current = false;
-  }, [content, pageId, index]);
-
+  }, [content, id, pageId]); // Changed from [content, pageId, index]
   const handleInput = useCallback(() => {
     if (editRef.current) {
       isInternalChange.current = true;
-      updateCopyArea(pageId, index, editRef.current.innerHTML);
+      updateCopyArea(pageId, id, editRef.current.innerHTML); // Changed from updateCopyArea(pageId, index, ...)
     }
-  }, [pageId, index, updateCopyArea]);
-
+  }, [pageId, id, updateCopyArea]); // Changed from [pageId, index, updateCopyArea]
   const handleCopy = async () => {
     if (!content) return;
     try {
@@ -42,6 +39,7 @@ const CopyArea: React.FC<CopyAreaProps> = ({ content, pageId, index }) => {
       await navigator.clipboard.write(data);
       showToast('書式を維持してコピーしました');
     } catch (err) {
+      console.error("クリップボードへの書き込みに失敗しました:", err); // Added error logging
       navigator.clipboard.writeText(editRef.current?.textContent || "");
       showToast('テキストのみコピーしました');
     }
@@ -53,7 +51,7 @@ const CopyArea: React.FC<CopyAreaProps> = ({ content, pageId, index }) => {
   };
 
   const menuItems: MenuItem[] = [
-    { label: 'コピー領域を削除', onClick: () => deleteCopyArea(pageId, index) }
+    { label: 'コピー領域を削除', onClick: () => deleteCopyArea(pageId, id) } // Changed from deleteCopyArea(pageId, index)
   ];
 
   const renderHighlightedText = (html: string) => {
@@ -105,7 +103,7 @@ const CopyArea: React.FC<CopyAreaProps> = ({ content, pageId, index }) => {
         </button>
       </div>
       
-      <div className="relative min-h-[40px]">
+      <div className="relative min-h-[40px">
         {state.searchTerm && (
            <div 
              className="absolute inset-0 text-sm leading-relaxed text-gray-800 pointer-events-none whitespace-pre-wrap break-words font-medium z-10"
@@ -139,3 +137,4 @@ const CopyArea: React.FC<CopyAreaProps> = ({ content, pageId, index }) => {
 };
 
 export default CopyArea;
+
