@@ -136,6 +136,7 @@ const Editor: React.FC = () => {
                       id={block.id}
                       content={block.content}
                       // ★ここが重要: ページIDとブロックIDの両方を渡す
+                      // Editor.tsx 139行目あたり
                       onRemove={(blockId) => deleteCopyArea(activePage.id, blockId)}
                     />
                   </motion.div>

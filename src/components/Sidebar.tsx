@@ -1,17 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore, stripHtml } from '../store/useStore';
 import { PlusIcon, BookIcon, SearchIcon, ChevronDownIcon, ChevronRightIcon } from './Icons';
-import { ONENOTE_PURPLE } from '../constants';
 import ContextMenu, { type MenuItem } from './ContextMenu';
-import type { Section, SidebarItem } from '../types';
 
 const Sidebar: React.FC = () => {
-  const { 
-    state, setActiveNotebook, setActiveSection, setActivePage, 
-    addSection, addPage, renameSection, deleteSection, 
-    deletePage, toggleSubpage, reorderPages, reorderSidebarItems,
+  const {
+    state, setActiveSection, setActivePage,
+    addSection, addPage, renameSection, deleteSection,
+    deletePage, toggleSubpage, reorderSidebarItems,
     moveSectionToGroup, addSectionGroup, renameSectionGroup, toggleSectionGroup, removeSectionGroup,
-    performSearch, goToNextResult, clearSearch
+    performSearch, clearSearch
   } = useStore();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, items: MenuItem[] } | null>(null);
@@ -19,376 +17,319 @@ const Sidebar: React.FC = () => {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [localSearch, setLocalSearch] = useState('');
 
-  const activeNotebook = state.notebooks.find(n => n.id === state.activeNotebookId);
+  const activeNotebook = state.notebooks.find(n => n.id === state.activeNotebookId) || state.notebooks[0];
   const activeSection = activeNotebook?.sections.find(s => s.id === state.activeSectionId);
 
   // Drag and Drop State
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragType, setDragType] = useState<'section' | 'page' | 'group' | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const renameInputRef = useRef<HTMLInputElement>(null);
   const groupRenameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editingSectionId && renameInputRef.current) {
+      renameInputRef.current.focus();
       renameInputRef.current.select();
     }
   }, [editingSectionId]);
 
   useEffect(() => {
     if (editingGroupId && groupRenameInputRef.current) {
+      groupRenameInputRef.current.focus();
       groupRenameInputRef.current.select();
     }
   }, [editingGroupId]);
 
-  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      if (localSearch && localSearch === state.searchTerm) {
-        goToNextResult();
-      } else {
-        performSearch(localSearch);
-      }
+  const handleDragStart = (e: React.DragEvent, id: string, type: 'section' | 'page' | 'group') => {
+    setDraggedId(id);
+    setDragType(type);
+    e.dataTransfer.effectAllowed = 'move';
+    if (type === 'page') {
+      e.dataTransfer.setData('pageId', id);
     }
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setLocalSearch(val);
-    if (!val) {
-      clearSearch();
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (draggedId === id) return;
+    setDragOverId(id);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string, targetType: 'section' | 'page' | 'group') => {
+    e.preventDefault();
+    setDragOverId(null);
+
+    if (!draggedId || !dragType) return;
+    if (draggedId === targetId) return;
+
+    if (activeNotebook && (dragType === 'section' || dragType === 'group') && (targetType === 'section' || targetType === 'group')) {
+        const currentOrder = [...activeNotebook.sidebarOrder];
+        const oldIndex = currentOrder.findIndex(i => i.id === draggedId);
+        const newIndex = currentOrder.findIndex(i => i.id === targetId);
+        
+        if (oldIndex !== -1 && newIndex !== -1) {
+            currentOrder.splice(oldIndex, 1);
+            currentOrder.splice(newIndex, 0, { id: draggedId, type: dragType });
+            reorderSidebarItems(currentOrder);
+        }
+    } else if (dragType === 'page' && targetType === 'section') {
+      const pageId = e.dataTransfer.getData('pageId');
+      if (pageId && useStore.getState().movePageToSection) {
+        useStore.getState().movePageToSection(pageId, targetId);
+      }
     }
+    
+    setDraggedId(null);
+    setDragType(null);
   };
 
   const handleContextMenu = (e: React.MouseEvent, type: 'section' | 'page' | 'group', id: string) => {
     e.preventDefault();
+    e.stopPropagation();
     const items: MenuItem[] = [];
 
     if (type === 'section') {
-      const section = activeNotebook?.sections.find(s => s.id === id);
-      items.push({ label: 'セクション名変更', onClick: () => setEditingSectionId(id) });
-      if (section?.groupId) {
-        items.push({ label: 'グループから解除', onClick: () => moveSectionToGroup(id, undefined) });
-      }
-      items.push({ label: '削除', onClick: () => deleteSection(id) });
-      items.push({ label: 'グループを作成', onClick: () => state.activeNotebookId && addSectionGroup(state.activeNotebookId, id) });
+      items.push(
+        { label: '名前の変更', onClick: () => setEditingSectionId(id) },
+        { label: '削除', onClick: () => { if (confirm('セクションを削除しますか？')) deleteSection(id); }, danger: true },
+        { label: 'グループへ移動', onClick: () => {
+            const confirmed = confirm('グループから出してルートへ移動しますか？');
+            if (confirmed) moveSectionToGroup(id, undefined); 
+        }}
+      );
     } else if (type === 'page') {
-      items.push({ label: '削除', onClick: () => deletePage(id) });
-      items.push({ label: 'サブページ', onClick: () => toggleSubpage(id) });
+      items.push(
+        { label: '削除', onClick: () => { if (confirm('ページを削除しますか？')) deletePage(id); }, danger: true },
+        { label: 'サブページにする/解除', onClick: () => toggleSubpage(id) }
+      );
     } else if (type === 'group') {
-      items.push({ label: 'グループ名の変更', onClick: () => setEditingGroupId(id) });
-      items.push({ label: 'セクショングループの解除', onClick: () => removeSectionGroup(id) });
+        items.push(
+            { label: '名前の変更', onClick: () => setEditingGroupId(id) },
+            { label: 'グループ解除', onClick: () => removeSectionGroup(id), danger: true }
+        );
     }
 
     setContextMenu({ x: e.clientX, y: e.clientY, items });
   };
 
-  const handleDragStart = (e: React.DragEvent, id: string, type: 'section' | 'page' | 'group') => {
-    // 編集モード中はドラッグを無効化
-    if (editingSectionId || editingGroupId) {
-      e.preventDefault();
-      return;
-    }
-    
-    // バブリング防止：子(section)ドラッグ時に親(group)ドラッグが起きないように
-    e.stopPropagation();
-    
-    if (id === 'sec1' && type === 'section') {
-      e.preventDefault();
-      return;
-    }
-    setDraggedId(id);
-    setDragType(type);
-    e.dataTransfer.effectAllowed = 'move';
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalSearch(e.target.value);
+    performSearch(e.target.value);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, targetId: string, targetType: 'section' | 'page' | 'group') => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!draggedId || !dragType || draggedId === targetId) {
-      setDraggedId(null);
-      return;
-    }
-
-    if (dragType === 'section' && (targetType === 'section' || targetType === 'group')) {
-      if (activeNotebook) {
-        const targetSection = activeNotebook.sections.find(s => s.id === targetId);
-        
-        if (targetType === 'group' || (targetType === 'section' && targetSection?.groupId)) {
-          const gid = targetType === 'group' ? targetId : targetSection?.groupId;
-          moveSectionToGroup(draggedId, gid);
-          setDraggedId(null);
-          return;
-        }
-
-        moveSectionToGroup(draggedId, undefined);
-        const currentOrder = [...activeNotebook.sidebarOrder];
-        const oldIndex = currentOrder.findIndex(i => i.id === draggedId);
-        const newIndex = currentOrder.findIndex(i => i.id === targetId);
-
-        if (newIndex !== -1) {
-          if (oldIndex !== -1) currentOrder.splice(oldIndex, 1);
-          currentOrder.splice(newIndex, 0, { id: draggedId, type: 'section' });
-          reorderSidebarItems(activeNotebook.id, currentOrder);
-        }
-      }
-    } else if (dragType === 'group' && (targetType === 'group' || targetType === 'section')) {
-      if (activeNotebook) {
-        const currentOrder = [...activeNotebook.sidebarOrder];
-        const oldIndex = currentOrder.findIndex(i => i.id === draggedId);
-        const newIndex = currentOrder.findIndex(i => i.id === targetId);
-
-        if (oldIndex !== -1 && newIndex !== -1) {
-          currentOrder.splice(oldIndex, 1);
-          currentOrder.splice(newIndex, 0, { id: draggedId, type: 'group' });
-          reorderSidebarItems(activeNotebook.id, currentOrder);
-        }
-      }
-    } else if (dragType === 'page' && activeSection && targetType === 'page') {
-      const pages = activeSection.pages;
-      const getBlock = (id: string): string[] => {
-        const idx = pages.findIndex(p => p.id === id);
-        if (idx === -1) return [id];
-        if (pages[idx].isSubpage) return [id];
-        const block = [id];
-        for (let i = idx + 1; i < pages.length; i++) {
-          if (pages[i].isSubpage) {
-            block.push(pages[i].id);
-          } else {
-            break;
-          }
-        }
-        return block;
-      };
-
-      const draggedBlock = getBlock(draggedId);
-      const allPageIds = pages.map(p => p.id);
-      const remainingIds = allPageIds.filter(id => !draggedBlock.includes(id));
-      const insertIdx = remainingIds.indexOf(targetId);
-      remainingIds.splice(insertIdx, 0, ...draggedBlock);
-      reorderPages(activeSection.id, remainingIds);
-    }
-    setDraggedId(null);
-  };
-
-  const handleRootDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (dragType === 'section' && draggedId) {
-      moveSectionToGroup(draggedId, undefined);
-    }
-    setDraggedId(null);
-  };
-
-  const renderSectionItem = (section: Section) => (
-    <div
-      key={section.id}
-      draggable={section.id !== 'sec1' && !editingSectionId}
-      onDragStart={(e) => handleDragStart(e, section.id, 'section')}
-      onDragOver={handleDragOver}
-      onDrop={(e) => handleDrop(e, section.id, 'section')}
-      onContextMenu={(e) => handleContextMenu(e, 'section', section.id)}
-      onDoubleClick={() => setEditingSectionId(section.id)}
-      className={`group relative border-l-4 transition-all cursor-pointer ${
-        state.activeSectionId === section.id 
-          ? 'bg-white font-semibold shadow-sm' 
-          : 'hover:bg-gray-100 text-gray-600 border-transparent'
-      }`}
-      style={{ borderLeftColor: state.activeSectionId === section.id ? section.color : 'transparent' }}
-    >
-      {editingSectionId === section.id ? (
-        <input
-          ref={renameInputRef}
-          autoFocus
-          className="w-full px-4 py-3 text-sm border-none focus:ring-1 focus:ring-purple-400 bg-white outline-none"
-          defaultValue={section.title}
-          onBlur={(e) => {
-            renameSection(section.id, e.target.value);
-            setEditingSectionId(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              renameSection(section.id, (e.target as HTMLInputElement).value);
-              setEditingSectionId(null);
-            } else if (e.key === 'Escape') {
-              setEditingSectionId(null);
-            }
-          }}
-        />
-      ) : (
-        <button
-          onClick={() => setActiveSection(section.id)}
-          className="w-full text-left px-4 py-3 text-sm truncate"
-        >
-          {section.title}
-        </button>
-      )}
-    </div>
-  );
+  if (!activeNotebook) return null;
 
   return (
-    <div className="flex h-full select-none shrink-0">
-      <div className="w-16 flex flex-col items-center py-4 bg-gray-100 border-r border-gray-200">
-        <div className="mb-8 p-2 rounded-lg bg-white shadow-sm" style={{ color: ONENOTE_PURPLE }}>
-          <BookIcon className="w-6 h-6" />
+    <div className="flex h-full w-64 flex-col border-r border-gray-200 bg-[#f8f8f8]">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-gray-200 p-4 bg-white">
+        <div className="flex items-center gap-2 font-bold text-gray-700">
+          <BookIcon className="h-5 w-5 text-purple-700" />
+          <span className="truncate">{activeNotebook.title}</span>
         </div>
-        {state.notebooks.map(nb => (
-          <button
-            key={nb.id}
-            onClick={() => setActiveNotebook(nb.id)}
-            className={`w-12 h-12 flex items-center justify-center rounded-lg mb-2 transition-all ${
-              state.activeNotebookId === nb.id ? 'bg-white shadow-md' : 'hover:bg-gray-200'
-            }`}
-          >
-            <span className="font-bold text-gray-600">{nb.title.charAt(0)}</span>
-          </button>
-        ))}
+        <button onClick={() => addSectionGroup(activeNotebook.id)} title="グループ追加" className="text-gray-400 hover:text-purple-600">
+            <PlusIcon className="h-4 w-4" />
+        </button>
       </div>
 
-      <div className="w-60 bg-gray-50 flex flex-col border-r border-gray-200">
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 z-10">
-          <span className="font-semibold text-gray-700 text-sm">セクション</span>
-          <button 
-            onClick={() => state.activeNotebookId && addSection(state.activeNotebookId)}
-            className="p-1 hover:bg-gray-200 rounded text-gray-500"
-          >
-            <PlusIcon className="w-4 h-4" />
-          </button>
-        </div>
-        <div 
-          id="sidebar-sections-root"
-          className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-gray-50"
-          onDragOver={handleDragOver}
-          onDrop={handleRootDrop}
-        >
-          {activeNotebook && activeNotebook.sidebarOrder.map((item) => {
-            if (item.type === 'group') {
-              const group = activeNotebook.sectionGroups.find(g => g.id === item.id);
-              if (!group) return null;
-              return (
-                <div 
-                  key={group.id} 
-                  className="mb-1"
-                  draggable={!editingGroupId}
-                  onDragStart={(e) => handleDragStart(e, group.id, 'group')}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, group.id, 'group')}
-                  onContextMenu={(e) => handleContextMenu(e, 'group', group.id)}
-                >
-                  {editingGroupId === group.id ? (
-                    <div className="px-2 py-2">
-                      <input
-                        ref={groupRenameInputRef}
-                        autoFocus
-                        className="w-full px-2 py-1 text-sm border border-purple-400 bg-white outline-none rounded shadow-sm"
-                        defaultValue={group.title}
-                        onBlur={(e) => {
-                          renameSectionGroup(group.id, e.target.value);
-                          setEditingGroupId(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            renameSectionGroup(group.id, (e.target as HTMLInputElement).value);
-                            setEditingGroupId(null);
-                          } else if (e.key === 'Escape') {
-                            setEditingGroupId(null);
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={() => toggleSectionGroup(group.id)}
-                      onDoubleClick={() => setEditingGroupId(group.id)}
-                      className="w-full flex items-center px-2 py-2 hover:bg-gray-200 transition-colors group"
-                    >
-                      <div className="mr-1 text-gray-500">
-                        {group.isCollapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
-                      </div>
-                      <span className="text-sm font-medium text-gray-700 truncate">{group.title}</span>
-                    </button>
-                  )}
-                  {!group.isCollapsed && (
-                    <div className="pl-4 border-l border-gray-200 ml-4 mt-1">
-                      {activeNotebook.sections
-                        .filter(s => s.groupId === group.id)
-                        .map(s => renderSectionItem(s))}
-                    </div>
-                  )}
-                </div>
-              );
-            } else {
-              const section = activeNotebook.sections.find(s => s.id === item.id);
-              if (!section || section.groupId) return null;
-              return renderSectionItem(section);
-            }
-          })}
-          <div className="h-32 w-full" />
-        </div>
-      </div>
-
-      <div className="w-64 bg-white flex flex-col border-r border-gray-200">
-        <div className="p-4 border-b border-gray-200 flex flex-col space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="font-semibold text-gray-700 text-sm">ページ</span>
-            <button 
-              onClick={() => state.activeSectionId && addPage(state.activeSectionId)}
-              className="p-1 hover:bg-gray-200 rounded text-gray-500"
-            >
-              <PlusIcon className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="relative">
-            <SearchIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="検索"
-              className="w-full bg-gray-100 border-none rounded-md pl-9 pr-3 py-1.5 text-xs focus:ring-0"
-              value={localSearch}
-              onChange={handleSearchChange}
-              onKeyDown={handleSearchKeyDown}
-            />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {activeSection?.pages.map(page => (
-            <div
-              key={page.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, page.id, 'page')}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, page.id, 'page')}
-              onContextMenu={(e) => handleContextMenu(e, 'page', page.id)}
-              className={`w-full border-b border-gray-100 transition-all ${
-                state.activePageId === page.id ? 'bg-purple-50' : 'hover:bg-gray-50'
-              } ${page.isSubpage ? 'pl-8' : ''}`}
-            >
-              <button
-                onClick={() => setActivePage(page.id)}
-                className="w-full text-left px-4 py-4"
-              >
-                <div className={`text-sm font-semibold truncate ${state.activePageId === page.id ? 'text-purple-700' : 'text-gray-800'}`}>
-                  {page.title || '無題のページ'}
-                </div>
-                <div className="text-xs text-gray-500 truncate mt-1">
-                  {stripHtml(page.content) || '内容なし'}
-                </div>
-                <div className="text-[10px] text-gray-400 mt-2">
-                  {new Date(page.lastModified).toLocaleDateString()}
-                </div>
-              </button>
-            </div>
-          ))}
-          {activeSection?.pages.length === 0 && (
-            <div className="p-8 text-center text-xs text-gray-400">
-              ページがありません
-            </div>
+      {/* Search */}
+      <div className="p-3">
+        <div className="relative">
+          <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="検索..."
+            value={localSearch}
+            onChange={handleSearch}
+            className="w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-2 text-sm focus:border-purple-500 focus:outline-none"
+          />
+          {localSearch && (
+             <button onClick={() => { setLocalSearch(''); clearSearch(); }} className="absolute right-2 top-2 text-xs text-gray-400 hover:text-gray-600">×</button>
           )}
         </div>
+      </div>
+
+      {/* Section List */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {activeNotebook.sidebarOrder.map((item) => {
+            if (item.type === 'group') {
+                const group = activeNotebook.sectionGroups.find(g => g.id === item.id);
+                if (!group) return null;
+                const groupSections = activeNotebook.sections.filter(s => s.groupId === group.id);
+
+                return (
+                    <div 
+                        key={group.id} 
+                        className={`mb-1 ${dragOverId === group.id ? 'border-t-2 border-purple-500' : ''}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, group.id, 'group')}
+                        onDragOver={(e) => handleDragOver(e, group.id)}
+                        onDrop={(e) => handleDrop(e, group.id, 'group')}
+                        onContextMenu={(e) => handleContextMenu(e, 'group', group.id)}
+                    >
+                        <div 
+                            className="flex cursor-pointer items-center gap-1 px-3 py-1 text-sm font-semibold text-gray-600 hover:bg-gray-200"
+                            onClick={() => toggleSectionGroup(group.id)}
+                        >
+                            {group.isCollapsed ? <ChevronRightIcon className="h-3 w-3"/> : <ChevronDownIcon className="h-3 w-3"/>}
+                            {editingGroupId === group.id ? (
+                                <input
+                                    ref={groupRenameInputRef}
+                                    defaultValue={group.title}
+                                    onBlur={(e) => {
+                                        renameSectionGroup(group.id, e.target.value);
+                                        setEditingGroupId(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            renameSectionGroup(group.id, e.currentTarget.value);
+                                            setEditingGroupId(null);
+                                        }
+                                    }}
+                                    className="bg-white px-1 outline-none ring-1 ring-purple-500"
+                                />
+                            ) : (
+                                <span>{group.title}</span>
+                            )}
+                        </div>
+                        
+                        {!group.isCollapsed && (
+                            <div className="ml-2 border-l-2 border-gray-300 pl-1">
+                                {groupSections.map(section => (
+                                    <div
+                                        key={section.id}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, section.id, 'section')}
+                                        onDragOver={(e) => handleDragOver(e, section.id)}
+                                        onDrop={(e) => handleDrop(e, section.id, 'section')}
+                                        onClick={() => setActiveSection(section.id)}
+                                        onContextMenu={(e) => handleContextMenu(e, 'section', section.id)}
+                                        className={`group relative mb-0.5 flex cursor-pointer items-center justify-between rounded-l-md border-l-4 px-3 py-2 transition-colors ${
+                                            state.activeSectionId === section.id
+                                            ? 'bg-white font-medium text-purple-900 shadow-sm'
+                                            : 'border-transparent text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                        style={{ borderLeftColor: state.activeSectionId === section.id ? section.color : 'transparent' }}
+                                    >
+                                        {editingSectionId === section.id ? (
+                                            <input
+                                                ref={renameInputRef}
+                                                defaultValue={section.title}
+                                                onBlur={(e) => {
+                                                    renameSection(section.id, e.target.value);
+                                                    setEditingSectionId(null);
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        renameSection(section.id, e.currentTarget.value);
+                                                        setEditingSectionId(null);
+                                                    }
+                                                }}
+                                                className="w-full bg-white px-1 outline-none ring-1 ring-purple-500"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            <span className="truncate">{section.title}</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            } else {
+                const section = activeNotebook.sections.find(s => s.id === item.id);
+                if (!section || section.groupId) return null;
+
+                return (
+                    <div
+                        key={section.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, section.id, 'section')}
+                        onDragOver={(e) => handleDragOver(e, section.id)}
+                        onDrop={(e) => handleDrop(e, section.id, 'section')}
+                        onClick={() => setActiveSection(section.id)}
+                        onContextMenu={(e) => handleContextMenu(e, 'section', section.id)}
+                        className={`group relative mb-0.5 flex cursor-pointer items-center justify-between rounded-l-md border-l-4 px-3 py-2 transition-colors ${
+                            state.activeSectionId === section.id
+                            ? 'bg-white font-medium text-purple-900 shadow-sm'
+                            : 'border-transparent text-gray-600 hover:bg-gray-200'
+                        } ${dragOverId === section.id ? 'bg-purple-100' : ''}`}
+                        style={{ borderLeftColor: state.activeSectionId === section.id ? section.color : 'transparent' }}
+                    >
+                        {editingSectionId === section.id ? (
+                            <input
+                                ref={renameInputRef}
+                                defaultValue={section.title}
+                                onBlur={(e) => {
+                                    renameSection(section.id, e.target.value);
+                                    setEditingSectionId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        renameSection(section.id, e.currentTarget.value);
+                                        setEditingSectionId(null);
+                                    }
+                                }}
+                                className="w-full bg-white px-1 outline-none ring-1 ring-purple-500"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        ) : (
+                            <span className="truncate">{section.title}</span>
+                        )}
+                    </div>
+                );
+            }
+        })}
+
+        <div
+          onClick={() => addSection(activeNotebook.id)}
+          className="mt-1 flex cursor-pointer items-center gap-2 px-4 py-2 text-sm text-gray-500 hover:bg-gray-200 hover:text-purple-700"
+        >
+          <PlusIcon className="h-4 w-4" />
+          <span>セクションを追加</span>
+        </div>
+      </div>
+
+      {/* Page List */}
+      <div className="flex-1 overflow-y-auto border-t border-gray-200 bg-[#f5f5f5] custom-scrollbar">
+        {activeSection ? (
+          <div>
+            <div className="bg-gray-100 px-4 py-2 text-xs font-bold text-gray-500 sticky top-0">
+                {activeSection.title} のページ
+            </div>
+            {activeSection.pages.map((page) => (
+              <div
+                key={page.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, page.id, 'page')}
+                onContextMenu={(e) => handleContextMenu(e, 'page', page.id)}
+                onClick={() => setActivePage(page.id)}
+                className={`cursor-pointer border-b border-gray-200 px-4 py-3 transition-colors hover:bg-white ${
+                  state.activePageId === page.id ? 'bg-white border-l-4 border-l-purple-600' : 'bg-transparent border-l-4 border-l-transparent'
+                } ${page.isSubpage ? 'pl-8' : ''}`}
+              >
+                <div className={`text-sm font-medium ${state.activePageId === page.id ? 'text-black' : 'text-gray-700'}`}>
+                  {page.title || '無題のページ'}
+                </div>
+                <div className="mt-1 truncate text-xs text-gray-400">
+                  {page.content ? stripHtml(page.content).substring(0, 30) : '追加テキストなし'}
+                </div>
+              </div>
+            ))}
+            <div
+              onClick={() => addPage(activeSection.id)}
+              className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm text-gray-500 hover:bg-white hover:text-purple-700"
+            >
+              <PlusIcon className="h-4 w-4" />
+              <span>ページを追加</span>
+            </div>
+          </div>
+        ) : (
+            <div className="p-4 text-center text-sm text-gray-400">セクションを選択</div>
+        )}
       </div>
 
       {contextMenu && (

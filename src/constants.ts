@@ -1,33 +1,46 @@
+import type { AppState, Notebook } from './types';
 
-export const ONENOTE_PURPLE = '#773191';
-export const SECTION_COLORS = [
-  '#ef4444', // Red
-  '#f59e0b', // Amber
-  '#10b981', // Emerald
-  '#3b82f6', // Blue
-  '#8b5cf6', // Violet
-  '#ec4899', // Pink
-];
+export const ONENOTE_PURPLE = '#7719aa';
 
-export const INITIAL_DATA = [
-  {
-    id: 'nb1',
-    title: 'マイ ノートブック',
-    sections: [
-      {
-        id: 'sec1',
-        title: 'クイック ノート',
-        color: '#8b5cf6',
-        pages: [
-          {
-            id: 'page1',
-            title: '最初のページ',
-            content: 'ここに通常のメモを入力します。OneNoteのように自由な位置に書き込める感覚を再現します。',
-            copyAreas: ['ここはコピー領域です。右上のアイコンをクリックすることで、この領域の内容をクリップボードに一括コピーできます。'],
-            lastModified: Date.now(),
-          }
-        ]
-      }
-    ]
-  }
-];
+const DEFAULT_NOTEBOOK_ID = 'default-notebook';
+const DEFAULT_SECTION_ID = 'default-section';
+const DEFAULT_PAGE_ID = 'default-page';
+
+const defaultNotebook: Notebook = {
+  id: DEFAULT_NOTEBOOK_ID,
+  title: 'マイ ノートブック',
+  sidebarOrder: [{ id: DEFAULT_SECTION_ID, type: 'section' }], // ★修正: ノートブック内に移動
+  sectionGroups: [],
+  sections: [
+    {
+      id: DEFAULT_SECTION_ID,
+      title: 'クイック ノート',
+      color: ONENOTE_PURPLE,
+      pages: [
+        {
+          id: DEFAULT_PAGE_ID,
+          title: '無題のページ',
+          content: '<p>ここにメモを入力...</p>',
+          copyAreas: [],
+          lastModified: Date.now(),
+        },
+      ],
+    },
+  ],
+};
+
+export const INITIAL_DATA: AppState = {
+  notebooks: [defaultNotebook],
+  activeNotebookId: DEFAULT_NOTEBOOK_ID,
+  activeSectionId: DEFAULT_SECTION_ID,
+  activePageId: DEFAULT_PAGE_ID,
+  toastMessage: null,
+  isDirty: false,
+  searchTerm: '',
+  searchResults: [],
+  currentSearchResultIndex: -1,
+};
+
+export const DEFAULT_GROUPS = [];
+export const DEFAULT_SECTIONS = defaultNotebook.sections;
+export const DEFAULT_PAGES = defaultNotebook.sections[0].pages;
