@@ -1,3 +1,4 @@
+
 export interface NotePage {
   id: string;
   title: string;
@@ -9,6 +10,7 @@ export interface NotePage {
 
 export interface CopyBlock {
   id: string;
+  title: string; // 題名を追加
   content: string;
 }
 
@@ -60,4 +62,3 @@ export interface AppState {
   searchResults: SearchMatch[];
   currentSearchResultIndex: number;
 }
-

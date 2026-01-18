@@ -1,6 +1,8 @@
 import type { AppState, Notebook } from './types';
 
 export const ONENOTE_PURPLE = '#7719aa';
+export const ONENOTE_BG_LIGHT = '#faf9f8';
+export const ONENOTE_BG_SIDEBAR = '#f3f2f1';
 
 const DEFAULT_NOTEBOOK_ID = 'default-notebook';
 const DEFAULT_SECTION_ID = 'default-section';
@@ -9,7 +11,7 @@ const DEFAULT_PAGE_ID = 'default-page';
 const defaultNotebook: Notebook = {
   id: DEFAULT_NOTEBOOK_ID,
   title: 'マイ ノートブック',
-  sidebarOrder: [{ id: DEFAULT_SECTION_ID, type: 'section' }], // ★修正: ノートブック内に移動
+  sidebarOrder: [{ id: DEFAULT_SECTION_ID, type: 'section' }],
   sectionGroups: [],
   sections: [
     {
@@ -20,8 +22,8 @@ const defaultNotebook: Notebook = {
         {
           id: DEFAULT_PAGE_ID,
           title: '無題のページ',
-          content: '<p>ここにメモを入力...</p>',
-          copyAreas: [],
+          content: '', // ← ここを空にしました
+          copyAreas: [{ id: 'default-copy-area', title: 'コピー領域', content: '' }], // ← ここも空にしました
           lastModified: Date.now(),
         },
       ],

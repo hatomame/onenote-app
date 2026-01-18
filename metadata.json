@@ -1,0 +1,5 @@
+{
+  "name": "一括コピー用メモ帳",
+  "description": "A Microsoft OneNote-style note-taking application featuring a special text area for quick bulk copying with a transient notification system, built using React, TypeScript, and Tailwind CSS.",
+  "requestFramePermissions": []
+}

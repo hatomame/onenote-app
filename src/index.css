@@ -1,2 +1,13 @@
 @import "tailwindcss";
-@config "../tailwind.config.js";
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: #c8c6c4;
+  cursor: text;
+}
