@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import CopyArea from './CopyArea';
 import SaveConfirmDialog from './SaveConfirmDialog'; // ← 追加
@@ -8,11 +8,11 @@ import ContextMenu, { type MenuItem } from './ContextMenu';
 import { ONENOTE_PURPLE } from '../constants';
 
 const Editor: React.FC = () => {
-  const { 
-    state, 
-    updatePage, 
+  const {
+    state,
+    updatePage,
     addPage,
-    addCopyArea, 
+    addCopyArea,
     deleteCopyArea,
     updateCopyArea,
     reorderCopyAreas
@@ -20,7 +20,7 @@ const Editor: React.FC = () => {
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [isCopyPanelExpanded, setIsCopyPanelExpanded] = useState(false);
-  
+
   const [draggedCopyAreaId, setDraggedCopyAreaId] = useState<string | null>(null);
   const [dragOverCopyAreaId, setDragOverCopyAreaId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<'before' | 'after' | null>(null);
@@ -31,6 +31,39 @@ const Editor: React.FC = () => {
     targetId: string | null;
     targetName: string;
   }>({ isOpen: false, targetId: null, targetName: '' });
+
+  // ★追加: コピー領域のリサイズ用ステート
+  const [copyPanelWidth, setCopyPanelWidth] = useState(320);
+  const [isResizingCopyPanel, setIsResizingCopyPanel] = useState(false);
+
+  // リサイズハンドラー
+  const startResizingCopyPanel = useCallback(() => setIsResizingCopyPanel(true), []);
+  const stopResizingCopyPanel = useCallback(() => setIsResizingCopyPanel(false), []);
+
+  const resizeCopyPanel = useCallback((e: MouseEvent) => {
+    if (isResizingCopyPanel) {
+      // 右端固定なので、ウィンドウ幅 - マウス位置が幅になる
+      const newWidth = window.innerWidth - e.clientX;
+      // 最小幅 200px, 最大幅 800px (必要に応じて調整)
+      if (newWidth >= 200 && newWidth <= 800) {
+        setCopyPanelWidth(newWidth);
+      }
+    }
+  }, [isResizingCopyPanel]);
+
+  useEffect(() => {
+    if (isResizingCopyPanel) {
+      window.addEventListener('mousemove', resizeCopyPanel);
+      window.addEventListener('mouseup', stopResizingCopyPanel);
+    } else {
+      window.removeEventListener('mousemove', resizeCopyPanel);
+      window.removeEventListener('mouseup', stopResizingCopyPanel);
+    }
+    return () => {
+      window.removeEventListener('mousemove', resizeCopyPanel);
+      window.removeEventListener('mouseup', stopResizingCopyPanel);
+    };
+  }, [isResizingCopyPanel, resizeCopyPanel, stopResizingCopyPanel]);
 
   const activePage = useMemo(() => {
     if (!state.activePageId) return null;
@@ -121,7 +154,7 @@ const Editor: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden bg-white relative" onContextMenu={handleContextMenu}>
+    <div className={`flex flex-1 h-full overflow-hidden bg-white relative ${isResizingCopyPanel ? 'cursor-col-resize select-none' : ''}`} onContextMenu={handleContextMenu}>
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="px-6 lg:px-12 pt-6 lg:pt-10 pb-4 border-b border-gray-100 bg-white z-10">
@@ -150,8 +183,18 @@ const Editor: React.FC = () => {
         </div>
       </div>
 
+      {/* Resizer for Copy Area */}
+      <div
+        className={`w-1 hover:w-1.5 cursor-col-resize bg-gray-200 hover:bg-purple-400 transition-colors z-40 flex-shrink-0 ${isCopyPanelExpanded ? 'fixed inset-y-0' : 'hidden lg:block lg:static'}`}
+        style={{ right: `${copyPanelWidth}px` }}
+        onMouseDown={startResizingCopyPanel}
+      />
+
       {/* Right Side Panel: Copy Areas */}
-      <div className={`fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 lg:translate-x-0 bg-[#faf9f8] border-l border-gray-200 flex flex-col shrink-0 ${isCopyPanelExpanded ? 'translate-x-0 w-[85vw] lg:w-80 shadow-2xl' : 'translate-x-full lg:translate-x-0 w-0 lg:w-80'}`}>
+      <div
+        style={{ '--copy-panel-width': `${copyPanelWidth}px` } as React.CSSProperties}
+        className={`fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 lg:translate-x-0 bg-[#faf9f8] border-l border-gray-200 flex flex-col shrink-0 ${isCopyPanelExpanded ? 'translate-x-0 w-[var(--copy-panel-width)] shadow-2xl' : 'translate-x-full lg:translate-x-0 w-0 lg:w-[var(--copy-panel-width)]'}`}
+      >
         <div className="px-5 py-4 flex justify-between items-center border-b border-gray-100 bg-white min-w-[280px]">
           <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">一括コピー領域</h3>
           <div className="flex items-center gap-2">
