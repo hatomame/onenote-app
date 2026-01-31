@@ -163,7 +163,7 @@ const Sidebar: React.FC = () => {
 
   return (
     <div 
-      className="flex h-full w-64 flex-col border-r border-gray-200 flex-shrink-0"
+      className="flex h-full w-full flex-col border-r border-gray-200 flex-shrink-0"
       style={{ backgroundColor: ONENOTE_BG_SIDEBAR }}
     >
       {/* Notebook Header */}
@@ -236,9 +236,9 @@ const Sidebar: React.FC = () => {
                   onDoubleClick={(e) => { e.stopPropagation(); setEditingGroupId(group.id); }}
                   onContextMenu={(e) => openActionMenu(e, 'group', group.id)}
                 >
-                  <div className="flex items-center gap-1 flex-1 overflow-hidden pointer-events-none">
+                  <div className="flex items-start gap-1 flex-1 overflow-hidden pointer-events-none">
                     {/* アイコン表示：V または > */}
-                    <div className="text-gray-500 shrink-0">
+                    <div className="text-gray-500 shrink-0 mt-0.5">
                         {group.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                     </div>
                     
@@ -255,7 +255,7 @@ const Sidebar: React.FC = () => {
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <span className="truncate ml-1">{group.title}</span>
+                      <span className="ml-1 whitespace-normal break-words text-left">{group.title}</span>
                     )}
                   </div>
                   <button onClick={(e) => openActionMenu(e, 'group', group.id)} className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-300 rounded transition-opacity pointer-events-auto">
@@ -396,7 +396,7 @@ const SectionItem: React.FC<SectionItemProps> = ({
       />
     )}
 
-    <div className="flex-1 truncate pointer-events-none flex items-center">
+    <div className="flex-1 pointer-events-none flex items-center min-w-0">
       {isEditing ? (
         <input
           ref={renameInputRef}
@@ -408,7 +408,7 @@ const SectionItem: React.FC<SectionItemProps> = ({
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="text-xs truncate">{section.title}</span>
+        <span className="text-xs whitespace-normal break-words leading-tight">{section.title}</span>
       )}
     </div>
     <button 

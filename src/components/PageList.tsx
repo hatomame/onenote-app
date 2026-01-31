@@ -21,12 +21,12 @@ const PageList: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     const items: MenuItem[] = [
-      { 
-        label: '削除', 
+      {
+        label: '削除',
         danger: true,
         onClick: () => {
           deletePage(id);
-        } 
+        }
       },
       { label: 'サブページにする/解除', onClick: () => toggleSubpage(id) }
     ];
@@ -41,7 +41,7 @@ const PageList: React.FC = () => {
   const onDragOver = (e: React.DragEvent, id: string) => {
     e.preventDefault();
     if (draggedPageId === id) return;
-    
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
     setDragPosition(y < rect.height / 2 ? 'before' : 'after');
@@ -63,16 +63,16 @@ const PageList: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-gray-200 bg-white flex-shrink-0">
+    <div className="flex h-full w-full flex-col border-r border-gray-200 bg-white flex-shrink-0">
       {activeSection ? (
         <>
           <div className="px-4 py-3 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
-            <span className="truncate flex-1 pr-2">{activeSection.title}</span>
+            <span className="flex-1 pr-2 whitespace-normal break-words text-left">{activeSection.title}</span>
             <button onClick={() => addPage(activeSection.id)} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-purple-600 transition-colors shrink-0">
               <PlusIcon className="h-3 w-3" />
             </button>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto custom-scrollbar select-none">
             {activeSection.pages.map((page) => (
               <div
@@ -84,24 +84,21 @@ const PageList: React.FC = () => {
                 onDragLeave={() => setDragOverId(null)}
                 onClick={() => setActivePage(page.id)}
                 onContextMenu={(e) => openActionMenu(e, page.id)}
-                className={`group relative cursor-pointer px-4 py-3 transition-all border-b border-gray-50 hover:bg-gray-50 ${
-                  state.activePageId === page.id ? 'bg-white shadow-[inset_4px_0_0_0_#7719aa] bg-gray-50' : ''
-                } ${page.isSubpage ? 'pl-8' : ''} ${
-                  dragOverId === page.id && dragPosition === 'before' ? 'border-t-2 border-purple-500 pt-[10px]' : ''
-                } ${
-                  dragOverId === page.id && dragPosition === 'after' ? 'border-b-2 border-purple-500 pb-[10px]' : ''
-                }`}
+                className={`group relative cursor-pointer px-4 py-3 transition-all border-b border-gray-50 hover:bg-gray-50 ${state.activePageId === page.id ? 'bg-white shadow-[inset_4px_0_0_0_#7719aa] bg-gray-50' : ''
+                  } ${page.isSubpage ? 'pl-8' : ''} ${dragOverId === page.id && dragPosition === 'before' ? 'border-t-2 border-purple-500 pt-[10px]' : ''
+                  } ${dragOverId === page.id && dragPosition === 'after' ? 'border-b-2 border-purple-500 pb-[10px]' : ''
+                  }`}
               >
                 <div className="flex justify-between items-start gap-2 pointer-events-none">
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold truncate ${state.activePageId === page.id ? 'text-gray-900' : 'text-gray-600'}`}>
+                    <div className={`text-sm font-semibold whitespace-normal break-words leading-tight ${state.activePageId === page.id ? 'text-gray-900' : 'text-gray-600'}`}>
                       {page.title || '無題のページ'}
                     </div>
-                    <div className="mt-1 truncate text-[11px] text-gray-400 font-normal">
+                    <div className="mt-1 text-[11px] text-gray-400 font-normal whitespace-normal break-words line-clamp-2">
                       {page.content ? stripHtml(page.content).substring(0, 40) : 'メモ内容なし'}
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={(e) => { e.stopPropagation(); openActionMenu(e, page.id); }}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded transition-opacity shrink-0 pointer-events-auto"
                   >
