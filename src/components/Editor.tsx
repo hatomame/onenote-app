@@ -153,6 +153,18 @@ const Editor: React.FC = () => {
     );
   }
 
+  // ★安全なウィンドウ幅監視
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const showCopyPanel = isCopyPanelExpanded || windowWidth >= 1024;
+  const panelWidth = showCopyPanel ? copyPanelWidth : 0;
+
   return (
     <div className={`flex flex-1 h-full overflow-hidden bg-white relative ${isResizingCopyPanel ? 'cursor-col-resize select-none' : ''}`} onContextMenu={handleContextMenu}>
       {/* Main Content Area */}
@@ -192,7 +204,7 @@ const Editor: React.FC = () => {
 
       {/* Right Side Panel: Copy Areas */}
       <div
-        style={{ width: isCopyPanelExpanded || window.innerWidth >= 1024 ? copyPanelWidth : 0 }}
+        style={{ width: panelWidth }}
         className={`fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 lg:translate-x-0 bg-[#faf9f8] border-l border-gray-200 flex flex-col shrink-0 ${isCopyPanelExpanded ? 'translate-x-0 shadow-2xl' : 'translate-x-full lg:translate-x-0'}`}
       >
         <div className="px-5 py-4 flex justify-between items-center border-b border-gray-100 bg-white min-w-[280px]">
