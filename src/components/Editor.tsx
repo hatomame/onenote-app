@@ -186,14 +186,14 @@ const Editor: React.FC = () => {
       {/* Resizer for Copy Area */}
       <div
         className={`w-1 hover:w-1.5 cursor-col-resize bg-gray-200 hover:bg-purple-400 transition-colors z-40 flex-shrink-0 ${isCopyPanelExpanded ? 'fixed inset-y-0' : 'hidden lg:block lg:static'}`}
-        style={{ right: `${copyPanelWidth}px` }}
+        style={{ right: isCopyPanelExpanded ? `${copyPanelWidth}px` : undefined }}
         onMouseDown={startResizingCopyPanel}
       />
 
       {/* Right Side Panel: Copy Areas */}
       <div
-        style={{ '--copy-panel-width': `${copyPanelWidth}px` } as React.CSSProperties}
-        className={`fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 lg:translate-x-0 bg-[#faf9f8] border-l border-gray-200 flex flex-col shrink-0 ${isCopyPanelExpanded ? 'translate-x-0 w-[var(--copy-panel-width)] shadow-2xl' : 'translate-x-full lg:translate-x-0 w-0 lg:w-[var(--copy-panel-width)]'}`}
+        style={{ width: isCopyPanelExpanded || window.innerWidth >= 1024 ? copyPanelWidth : 0 }}
+        className={`fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 lg:translate-x-0 bg-[#faf9f8] border-l border-gray-200 flex flex-col shrink-0 ${isCopyPanelExpanded ? 'translate-x-0 shadow-2xl' : 'translate-x-full lg:translate-x-0'}`}
       >
         <div className="px-5 py-4 flex justify-between items-center border-b border-gray-100 bg-white min-w-[280px]">
           <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">一括コピー領域</h3>
